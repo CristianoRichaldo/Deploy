@@ -119,3 +119,23 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# ==========================================
+# 🚀 УРОК 2: НАСТРОЙКИ КЭШИРОВАНИЯ (CACHING)
+# ==========================================
+CACHES = {
+    'default': {
+        # Локальная память (LocMemCache) - отлично подходит для разработки и тестирования
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'lesson2-cache',
+        'TIMEOUT': 300,  # Время жизни кэша по умолчанию: 300 секунд (5 минут)
+    }
+}
+
+# Настройки Django Rest Framework
+REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+}
