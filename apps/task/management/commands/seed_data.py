@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
-from task.models import Task
+from apps.task.models import Task
 
 
 class Command(BaseCommand):
