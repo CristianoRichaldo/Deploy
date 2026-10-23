@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,7 +26,7 @@ SECRET_KEY = 'django-insecure-d-em8(u)o&b7v4x(iv80#-4dvc5&aex3v*k%dgho^i8m@tq)tj
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -37,18 +38,22 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_filters', ###
+    'django_filters',
     'rest_framework',
+    'rest_framework.authtoken',
+    'rest_framework_simplejwt',
+    'drf_spectacular',
 
-    'apps.api',#
-    'apps.task',# 
-    'apps.books',# 
-    'apps.shop',# 
-    
+    'apps.api',
+    'apps.task',
+    'apps.books',
+    'apps.shop',
+    'apps.users',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -122,24 +127,72 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# ==========================================
-# 🚀 УРОК 2: НАСТРОЙКИ КЭШИРОВАНИЯ (CACHING)
-# ==========================================
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.onrender.com',
+    'https://*.railway.app',
+    'https://*.koyeb.app',
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+]
+
+
 CACHES = {
     'default': {
-        # Локальная память (LocMemCache) - отлично подходит для разработки и тестирования
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'lesson2-cache',
-        'TIMEOUT': 300,  # Время жизни кэша по умолчанию: 300 секунд (5 минут)
+        'LOCATION': 'app-cache',
+        'TIMEOUT': 300,
     }
 }
 
-# Настройки Django Rest Framework
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Geeks DRF API',
+    'DESCRIPTION': (
+        'Интерактивная документация Swagger / OpenAPI для учебного проекта Geeks.\n\n'
+        'Поддерживаемые способы авторизации:\n'
+        '- **DRF Token:** `Token <ключ>`\n'
+        '- **JWT:** `Bearer <access_токен>`\n'
+        '- **Session / Basic Auth**'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'TAGS': [
+        {'name': 'Пользователи (Users)', 'description': 'Регистрация, получение DRF Token / JWT токенов, управление профилем'},
+        {'name': 'Задачи (Tasks)', 'description': 'CRUD задач, дедлайны, группировка по датам и кэширование'},
+        {'name': 'Магазины и Товары (Shop)', 'description': 'Магазины, категории товаров, каталог с фильтрацией'},
+        {'name': 'Книги и Библиотеки (Books)', 'description': 'Библиотеки и книги с вложенной сериализацией'},
+        {'name': 'Базовый API (Intro)', 'description': 'Вводные эндпоинты первого урока DRF'},
+    ],
+}
+
+

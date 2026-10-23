@@ -1,10 +1,3 @@
-﻿from rest_framework import serializers
-from .models import Shop
+from .serializers import ShopSer, ShopSerializer, CategorySerializer, ProductSerializer
 
-class ShopSer(serializers.ModelSerializer):
-    user = serializers.ReadOnlyField(source='user.username')
-
-    class Meta:
-        model = Shop
-        fields = ('id', 'name', 'color', 'logo', 'user')
-        read_only_fields = ('id', 'user')
+__all__ = ['ShopSer', 'ShopSerializer', 'CategorySerializer', 'ProductSerializer']

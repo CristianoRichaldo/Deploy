@@ -1,41 +1,84 @@
+from datetime import timedelta
 from django.test import TestCase
+from django.utils import timezone
+from django.contrib.auth.models import User
 from django.core.cache import cache
 from rest_framework.test import APIClient
 from rest_framework import status
+from apps.task.models import Task
 
-from .models import Task
 
-
-class SimpleTaskCachingTests(TestCase):
+class TaskAppTestCase(TestCase):
     def setUp(self):
-        self.client = APIClient()
         cache.clear()
-        self.task = Task.objects.create(
-            title="Купить хлеб",
-            description="Свежий батон"
+        self.client = APIClient()
+        self.user = User.objects.create_user(username='taskuser', password='password123')
+        self.now = timezone.now()
+
+        self.t_future = Task.objects.create(
+            title='Сдать ДЗ',
+            deadline=self.now + timedelta(days=2, hours=2),
+            user=self.user
+        )
+        self.t_past = Task.objects.create(
+            title='Просроченная задача',
+            deadline=self.now - timedelta(days=2),
+            user=self.user
+        )
+        self.t_none = Task.objects.create(
+            title='Без срока',
+            deadline=None,
+            user=self.user
         )
 
-    def test_caching_flow(self):
-        # 1. Первый запрос: кэш пустой, данные читаются из базы
-        res1 = self.client.get("/task/")
-        self.assertEqual(res1.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(res1.data), 1)
+    def test_deadline_time_left_calculation(self):
+        response = self.client.get('/task/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = {t['title']: t['time_left'] for t in response.json()}
 
-        # 2. Проверяем, что в кэше появились данные
-        self.assertIsNotNone(cache.get("tasks"))
+        self.assertEqual(data['Сдать ДЗ'], '2 days left')
+        self.assertEqual(data['Просроченная задача'], 'Дедлайн просрочен')
+        self.assertEqual(data['Без срока'], 'Дедлайн не указан')
 
-        # 3. Добавляем новую запись напрямую в базу
-        Task.objects.create(title="Купить молоко", description="1 литр")
+    def test_grouped_endpoint(self):
+        response = self.client.get('/task/grouped/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        grouped = response.json()
 
-        # 4. Запрос через API по-прежнему возвращает 1 запись (из кэша)
-        res2 = self.client.get("/task/")
-        self.assertEqual(len(res2.data), 1)
+        expected_date = self.t_future.deadline.strftime('%Y-%m-%d')
+        self.assertIn(expected_date, grouped)
+        self.assertEqual(grouped[expected_date][0]['title'], 'Сдать ДЗ')
+        self.assertIn('no_deadline', grouped)
 
-        # 5. Делаем POST через API — кэш должен очиститься
-        post_res = self.client.post("/task/", {"title": "Купить масло", "description": "Пачка"}, format="json")
-        self.assertEqual(post_res.status_code, status.HTTP_201_CREATED)
-        self.assertIsNone(cache.get("tasks"))
+    def test_group_by_query_param(self):
+        response = self.client.get('/task/?group_by=date')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        grouped = response.json()
+        expected_date = self.t_future.deadline.strftime('%Y-%m-%d')
+        self.assertIn(expected_date, grouped)
 
-        # 6. Следующий GET вернет уже все 3 актуальные записи
-        res3 = self.client.get("/task/")
-        self.assertEqual(len(res3.data), 3)
+    def test_cache_invalidation_on_create_and_update(self):
+        # 1. Fill cache
+        self.client.get('/task/')
+        self.assertIsNotNone(cache.get('tasks'))
+
+        # 2. Authenticate and create task -> cache should clear
+        self.client.force_authenticate(user=self.user)
+        res = self.client.post('/task/', {
+            'title': 'Новая задача для проверки',
+            'description': 'Тест кэша'
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(cache.get('tasks'))
+
+        # 3. Fill cache again
+        self.client.get('/task/')
+        self.assertIsNotNone(cache.get('tasks'))
+
+        # 4. Update task -> cache should clear
+        task_id = self.t_future.id
+        update_res = self.client.patch(f'/task/{task_id}/', {
+            'is_completed': True
+        }, format='json')
+        self.assertEqual(update_res.status_code, status.HTTP_200_OK)
+        self.assertIsNone(cache.get('tasks'))

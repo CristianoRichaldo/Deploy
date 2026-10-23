@@ -1,10 +1,21 @@
 from rest_framework import serializers
+from .models import Books, Library
 
-from .models import Books
 
-
-class BooksSerializers(serializers.ModelSerializer):
+class BooksSerializer(serializers.ModelSerializer):
     class Meta:
         model = Books
-        fields = ("id", "title", "author", "price")
+        fields = ("id", "title", "author", "price", "library")
+        read_only_fields = ("id",)
+
+
+BooksSerializers = BooksSerializer
+
+
+class LibrarySerializer(serializers.ModelSerializer):
+    books = BooksSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Library
+        fields = ("id", "name", "address", "city", "books")
         read_only_fields = ("id",)
